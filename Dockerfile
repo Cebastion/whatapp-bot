@@ -9,6 +9,8 @@ WORKDIR /app
 COPY ["package.json", "package-lock.json*", "./"]
 
 RUN npm install --production
+RUN npm approve-scripts --allow-scripts-pending
+RUN npm rebuild
 
 COPY . .
 
