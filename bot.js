@@ -1,6 +1,14 @@
-import makeWASocket, {DisconnectReason, jidNormalizedUser, useMultiFileAuthState} from "@whiskeysockets/baileys";
+import makeWASocket, {
+    DisconnectReason,
+    jidNormalizedUser,
+    prepareWAMessageMedia,
+    useMultiFileAuthState
+} from "@whiskeysockets/baileys";
 import qrcode from "qrcode-terminal";
 import { sendButtons } from 'baileys_helpers'
+import {sendInteractiveMessage} from "baileys_helper/helpers/buttons.js";
+import fs from "fs";
+import path from "path";
 
 const bot = {
     connect: async () => {
@@ -20,7 +28,7 @@ const bot = {
                     (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut
                 console.log('connection closed due to', lastDisconnect?.error, ', reconnecting:', shouldReconnect)
                 if (shouldReconnect) {
-                    this.connect()
+                    bot.connect()
                 }
             } else if (connection === 'open') {
                 console.log('opened connection')
@@ -34,7 +42,62 @@ const bot = {
     },
     next: () => {},
     previous: () => {},
-    showGame: () => {},
+    showGame: async (sock, remoteJid) => {
+        try {
+            const imagePath = path.resolve('./image/img.png');
+
+            // Проверяем, существует ли файл
+            if (!fs.existsSync(imagePath)) {
+                console.error('❌ Картинка не найдена:', imagePath);
+                return;
+            }
+
+            // 1. Сначала загружаем картинку на сервер WhatsApp и формируем медиа-сообщение
+            const mediaMessage = await prepareWAMessageMedia(
+                { image: fs.readFileSync(imagePath) },
+                { upload: sock.waUploadToServer } // Обязательный параметр для загрузки медиа
+            );
+
+            // 2. Формируем интерактивное сообщение с кнопками и картинкой
+            const interactiveMessage = {
+                header: {
+                    hasMediaAttachment: true,
+                    imageMessage: mediaMessage.imageMessage // Прикрепляем загруженную картинку
+                },
+                body: {
+                    text: 'Приветствую!\n\nВыберите следующую игру:'
+                },
+                footer: {
+                    text: 'Меню управления'
+                },
+                nativeFlowMessage: {
+                    buttons: [
+                        {
+                            name: 'quick_reply',
+                            buttonParamsJson: JSON.stringify({
+                                display_text: 'Next game',
+                                id: 'next'
+                            })
+                        },
+                        {
+                            name: 'quick_reply',
+                            buttonParamsJson: JSON.stringify({
+                                display_text: 'Previous game',
+                                id: 'previous'
+                            })
+                        }
+                    ]
+                }
+            };
+
+            // 3. Отправляем собранное сообщение
+            await sendInteractiveMessage(sock, remoteJid, { interactiveMessage });
+
+            console.log('✅ Сообщение с картинкой и кнопками успешно отправлено!');
+        } catch (error) {
+            console.error('❌ Ошибка при отправке:', error);
+        }
+    },
     showProposal: () => {},
     welcomeMessage: async  (sock, remoteJid) => {
         try {
@@ -54,8 +117,6 @@ const bot = {
         sock.ev.on('messages.upsert', async (event) => {
             if (event.type !== 'notify') return
 
-            await  this.welcomeMessage(sock, event.messages[0].key.remoteJid)
-
             for (const msg of event.messages) {
                 const chatJid = msg.key.remoteJid
 
@@ -64,13 +125,13 @@ const bot = {
 
                 switch (btnId){
                     case 'proposal':
-                        this.showProposal()
+                        bot.showProposal()
                         break
                     case 'games':
-                        this.showGame()
+                       await bot.showGame(sock, chatJid)
                         break
                     default:
-                        await  this.welcomeMessage(sock, chatJid)
+                        await  bot.welcomeMessage(sock, chatJid)
                         break
                 }
             }
