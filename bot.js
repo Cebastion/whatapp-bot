@@ -9,6 +9,9 @@ import { sendButtons } from 'baileys_helpers'
 import {sendInteractiveMessage} from "baileys_helper/helpers/buttons.js";
 import fs from "fs";
 import path from "path";
+import {games} from "./games.js";
+
+let index_game = 0
 
 const bot = {
     connect: async () => {
@@ -40,38 +43,115 @@ const bot = {
 
         return sock
     },
-    next: () => {},
-    previous: () => {},
-    showGame: async (sock, remoteJid) => {
+    next: async (sock, remoteJid) => {
         try {
-            const imagePath = path.resolve('./image/img.png');
+        index_game++;
 
-            // Проверяем, существует ли файл
+        if(index_game > games.length) {
+            index_game = 0
+        }
+
+        const game = games[index_game]
+
+        const imagePath = path.resolve(`./image/${game.image}`);
+
+        if (!fs.existsSync(imagePath)) {
+            console.error('❌ Картинка не найдена:', imagePath);
+            return;
+        }
+
+        const mediaMessage = await prepareWAMessageMedia(
+            { image: fs.readFileSync(imagePath) },
+            { upload: sock.waUploadToServer } // Обязательный параметр для загрузки медиа
+        );
+
+        const interactiveMessage = {
+            header: {
+                hasMediaAttachment: true,
+                imageMessage: mediaMessage.imageMessage
+            },
+            body: {
+                text: game.title
+            },
+            footer: {
+                text: 'Меню управления'
+            },
+            nativeFlowMessage: {
+                buttons: [
+                    {
+                        name: 'cta_url',
+                        buttonParamsJson: JSON.stringify({
+                            display_text: "Open Game",
+                            url: game.link
+                        })
+                    },
+                    {
+                        name: 'quick_reply',
+                        buttonParamsJson: JSON.stringify({
+                            display_text: 'Next game',
+                            id: 'next'
+                        })
+                    },
+                    {
+                        name: 'quick_reply',
+                        buttonParamsJson: JSON.stringify({
+                            display_text: 'Previous game',
+                            id: 'previous'
+                        })
+                    }
+                ]
+            }
+        };
+
+        await sendInteractiveMessage(sock, remoteJid, { interactiveMessage });
+
+        console.log('✅ Сообщение с картинкой и кнопками успешно отправлено!');
+    } catch (error) {
+            console.error('❌ Ошибка при отправке:', error);
+        }
+    },
+    previous: async (sock, remoteJid) => {
+        try {
+            index_game--;
+
+            if(index_game === -1){
+                index_game = 0
+            }
+
+            const game = games[index_game]
+
+            const imagePath = path.resolve(`./image/${game.image}`);
+
             if (!fs.existsSync(imagePath)) {
                 console.error('❌ Картинка не найдена:', imagePath);
                 return;
             }
 
-            // 1. Сначала загружаем картинку на сервер WhatsApp и формируем медиа-сообщение
             const mediaMessage = await prepareWAMessageMedia(
                 { image: fs.readFileSync(imagePath) },
                 { upload: sock.waUploadToServer } // Обязательный параметр для загрузки медиа
             );
 
-            // 2. Формируем интерактивное сообщение с кнопками и картинкой
             const interactiveMessage = {
                 header: {
                     hasMediaAttachment: true,
-                    imageMessage: mediaMessage.imageMessage // Прикрепляем загруженную картинку
+                    imageMessage: mediaMessage.imageMessage
                 },
                 body: {
-                    text: 'Приветствую!\n\nВыберите следующую игру:'
+                    text: game.title
                 },
                 footer: {
                     text: 'Меню управления'
                 },
                 nativeFlowMessage: {
                     buttons: [
+                        {
+                            name: 'cta_url',
+                            buttonParamsJson: JSON.stringify({
+                                display_text: "Open Game",
+                                url: game.link
+                            })
+                        },
                         {
                             name: 'quick_reply',
                             buttonParamsJson: JSON.stringify({
@@ -90,7 +170,66 @@ const bot = {
                 }
             };
 
-            // 3. Отправляем собранное сообщение
+            await sendInteractiveMessage(sock, remoteJid, { interactiveMessage });
+
+            console.log('✅ Сообщение с картинкой и кнопками успешно отправлено!');
+        } catch (error) {
+            console.error('❌ Ошибка при отправке:', error);
+        }
+    },
+    showGame: async (sock, remoteJid) => {
+        try {
+            const game = games[0]
+            const imagePath = path.resolve(`./image/${game.image}`);
+
+            if (!fs.existsSync(imagePath)) {
+                console.error('❌ Картинка не найдена:', imagePath);
+                return;
+            }
+
+            const mediaMessage = await prepareWAMessageMedia(
+                { image: fs.readFileSync(imagePath) },
+                { upload: sock.waUploadToServer } // Обязательный параметр для загрузки медиа
+            );
+
+            const interactiveMessage = {
+                header: {
+                    hasMediaAttachment: true,
+                    imageMessage: mediaMessage.imageMessage
+                },
+                body: {
+                    text: game.title
+                },
+                footer: {
+                    text: 'Меню управления'
+                },
+                nativeFlowMessage: {
+                    buttons: [
+                        {
+                            name: 'open_game',
+                            buttonParamsJson: JSON.stringify({
+                                display_text: "Open Game",
+                                url: game.link
+                            })
+                        },
+                        {
+                            name: 'quick_reply',
+                            buttonParamsJson: JSON.stringify({
+                                display_text: 'Next game',
+                                id: 'next'
+                            })
+                        },
+                        {
+                            name: 'quick_reply',
+                            buttonParamsJson: JSON.stringify({
+                                display_text: 'Previous game',
+                                id: 'previous'
+                            })
+                        }
+                    ]
+                }
+            };
+
             await sendInteractiveMessage(sock, remoteJid, { interactiveMessage });
 
             console.log('✅ Сообщение с картинкой и кнопками успешно отправлено!');
@@ -129,6 +268,12 @@ const bot = {
                         break
                     case 'games':
                        await bot.showGame(sock, chatJid)
+                        break
+                    case 'next':
+                        await  bot.next(sock, chatJid)
+                        break
+                    case 'previous':
+                        await bot.previous(sock, chatJid)
                         break
                     default:
                         await  bot.welcomeMessage(sock, chatJid)
