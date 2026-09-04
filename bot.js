@@ -10,7 +10,9 @@ import {sendInteractiveMessage} from "baileys_helper/helpers/buttons.js";
 import fs from "fs";
 import path from "path";
 import {games} from "./games.js";
+import {isValidEmail} from "./helper.js";
 
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxKA5iW4i-duFJfl0zsxDD3u7aPsHUq38oNGpbUaIsb9DiGBb02kJjG63dEjze1aIBp/exec'
 let index_game = 0
 
 const bot = {
@@ -42,6 +44,28 @@ const bot = {
         sock.ev.on('creds.update', saveCreds)
 
         return sock
+    },
+    sendLead: async (data) => {
+        console.log(data)
+        try {
+            const response = await fetch(WEB_APP_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'text/plain;charset=utf-8',
+                },
+                body: JSON.stringify({email: data})
+            });
+
+            const result = await response.json();
+
+            if (result.ok) {
+                console.log('Данные успешно отправлены:', result);
+            } else {
+                console.error('Ошибка в скрипте:', result.error);
+            }
+        } catch (error) {
+            console.error('Ошибка запроса:', error);
+        }
     },
     next: async (sock, remoteJid) => {
         try {
@@ -238,20 +262,31 @@ const bot = {
         }
     },
     showProposal: () => {},
-    welcomeMessage: async  (sock, remoteJid) => {
-        try {
-            await sendButtons(sock, remoteJid, {
-                text: 'Hello! Welcome to domenBot\n' +
-                    'What would you like to see in our catalogue?',
-                buttons: [
-                    { id: 'games', text: 'Show games' },
-                    { id: 'proposal', text: 'Show proposals' },
-                ]
-            })
-        } catch(error) {
-            console.error('[Error send welcome message]: ', error)
-        }
-    },
+    welcomeMessage: async (sock, remoteJid, msg) => {
+            // Extract clean text from incoming message
+            const text = (typeof msg.message.extendedTextMessage.text === 'string' ? msg.message.extendedTextMessage.text : msg.message?.conversation || '');
+        console.log(text);
+
+            if (isValidEmail(text)) {
+                await bot.sendLead(text);
+
+                try {
+                    await sendButtons(sock, remoteJid, {
+                        text: 'Thank you! Your email has been saved.\n\nWhat would you like to see in our catalogue?',
+                        buttons: [
+                            { id: 'games', text: 'Show games' },
+                            { id: 'proposal', text: 'Show proposals' },
+                        ]
+                    });
+                } catch (error) {
+                    console.error('[Error send buttons]: ', error);
+                }
+            } else {
+                await sock.sendMessage(remoteJid, {
+                    text: 'Hello! Welcome to domenBot 👋\n\nPlease enter your email address to continue:'
+                });
+            }
+        },
     watchMessage: (sock) => {
         sock.ev.on('messages.upsert', async (event) => {
             if (event.type !== 'notify') return
@@ -276,7 +311,7 @@ const bot = {
                         await bot.previous(sock, chatJid)
                         break
                     default:
-                        await  bot.welcomeMessage(sock, chatJid)
+                        await  bot.welcomeMessage(sock, chatJid, msg)
                         break
                 }
             }
