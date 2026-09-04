@@ -264,7 +264,9 @@ const bot = {
     showProposal: () => {},
     welcomeMessage: async (sock, remoteJid, msg) => {
             // Extract clean text from incoming message
-            const text = (typeof msg.message.extendedTextMessage.text === 'string' ? msg.message.extendedTextMessage.text : msg.message?.conversation || '');
+        const text = msg.message?.extendedTextMessage?.text
+            ?? msg.message?.conversation
+            ?? '';
         console.log(text);
 
             if (isValidEmail(text)) {
@@ -294,6 +296,11 @@ const bot = {
             for (const msg of event.messages) {
                 const chatJid = msg.key.remoteJid
 
+                // Skip events with no actual message content
+                // (reactions, deletions, protocol messages, status updates, etc.)
+                if (!msg.message) continue
+                if (msg.key.fromMe) continue // optional: ignore your own sent messages
+
                 const btnId = msg.message.buttonsResponseMessage?.selectedButtonId
                     || msg.message.templateButtonReplyMessage?.selectedId
 
@@ -302,16 +309,16 @@ const bot = {
                         bot.showProposal()
                         break
                     case 'games':
-                       await bot.showGame(sock, chatJid)
+                        await bot.showGame(sock, chatJid)
                         break
                     case 'next':
-                        await  bot.next(sock, chatJid)
+                        await bot.next(sock, chatJid)
                         break
                     case 'previous':
                         await bot.previous(sock, chatJid)
                         break
                     default:
-                        await  bot.welcomeMessage(sock, chatJid, msg)
+                        await bot.welcomeMessage(sock, chatJid, msg)
                         break
                 }
             }
