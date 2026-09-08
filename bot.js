@@ -29,11 +29,11 @@ const bot = {
                 qrcode.generate(qr, { small: true })
             }
             if (connection === 'close') {
-                const shouldReconnect =
-                    (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut
-                console.log('connection closed due to', lastDisconnect?.error, ', reconnecting:', shouldReconnect)
+                const statusCode = (lastDisconnect?.error)?.output?.statusCode;
+                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+                console.log('connection closed due to', lastDisconnect?.error, ', reconnecting:', shouldReconnect);
                 if (shouldReconnect) {
-                    bot.connect()
+                    setTimeout(() => bot.connect(), 3000);
                 }
             } else if (connection === 'open') {
                 console.log('opened connection')
