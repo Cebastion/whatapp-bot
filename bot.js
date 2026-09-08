@@ -289,32 +289,37 @@ const bot = {
         },
     watchMessage: (sock) => {
         sock.ev.on('messages.upsert', async (event) => {
-            if (event.type !== 'notify') return
+            try{
+                if (event.type !== 'notify') return
 
-            for (const msg of event.messages) {
-                const chatJid = msg.key.remoteJid
+                for (const msg of event.messages) {
+                    const chatJid = msg.key.remoteJid
 
-                const btnId = msg.message.buttonsResponseMessage?.selectedButtonId
-                    || msg.message.templateButtonReplyMessage?.selectedId
+                    const btnId = msg.message.buttonsResponseMessage?.selectedButtonId
+                        || msg.message.templateButtonReplyMessage?.selectedId
 
-                switch (btnId){
-                    case 'proposal':
-                        bot.showProposal()
-                        break
-                    case 'games':
-                       await bot.showGame(sock, chatJid)
-                        break
-                    case 'next':
-                        await  bot.next(sock, chatJid)
-                        break
-                    case 'previous':
-                        await bot.previous(sock, chatJid)
-                        break
-                    default:
-                        await  bot.welcomeMessage(sock, chatJid, msg)
-                        break
+                    switch (btnId){
+                        case 'proposal':
+                            bot.showProposal()
+                            break
+                        case 'games':
+                            await bot.showGame(sock, chatJid)
+                            break
+                        case 'next':
+                            await  bot.next(sock, chatJid)
+                            break
+                        case 'previous':
+                            await bot.previous(sock, chatJid)
+                            break
+                        default:
+                            await  bot.welcomeMessage(sock, chatJid, msg)
+                            break
+                    }
                 }
+            } catch (error) {
+                console.error('[Error send buttons]: ', error);
             }
+
         })
     }
 }
