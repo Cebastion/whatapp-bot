@@ -263,11 +263,7 @@ const bot = {
     },
     showProposal: () => {},
     welcomeMessage: async (sock, remoteJid, msg) => {
-        if (!msg.message) return;
-            // Extract clean text from incoming message
-        const text = msg.message.conversation
-            || msg.message.extendedTextMessage?.text
-            || '';
+        const text = msg.message.extendedTextMessage?.text || '';
         console.log(text);
 
             if (isValidEmail(text)) {
