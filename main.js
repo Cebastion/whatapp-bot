@@ -9,6 +9,4 @@ app.listen(process.env.PORT || 3000, () => {
     console.log("Health check server started");
 });
 
-const sock = await bot.connect()
-
-bot.watchMessage(sock)
+await bot.connect()

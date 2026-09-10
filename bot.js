@@ -21,31 +21,28 @@ const bot = {
 
         const sock = makeWASocket({
             auth: state
-            // printQRInTerminal убран — он deprecated и не нужен для pairing code
         })
 
         sock.ev.on('connection.update', async (update) => {
             const { connection, lastDisconnect, qr } = update
 
-            // qr всё равно "срабатывает" в режиме pairing code — используем это
-            // как триггер для запроса кода, если устройство ещё не зарегистрировано
             if (qr && !sock.authState.creds.registered) {
                 try {
                     const code = await sock.requestPairingCode(PHONE_NUMBER)
                     console.log(`\n🔑 Pairing code: ${code}\n`)
-                    console.log('Откройте WhatsApp → Настройки → Связанные устройства → Привязать устройство → "Привязать по номеру телефона" и введите этот код.')
                 } catch (err) {
                     console.error('❌ Не удалось получить pairing code:', err)
                 }
             }
 
             if (connection === 'close') {
-                const statusCode = (lastDisconnect?.error)?.output?.statusCode;
-                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-                console.log('connection closed due to', lastDisconnect?.error, ', reconnecting:', shouldReconnect);
-                if (shouldReconnect) {
-                    setTimeout(() => bot.connect(), 3000);
+                console.log("Next try connected")
+
+                if (lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut) {
+                    fs.rmSync(path.resolve('./auth_info_baileys'), { recursive: true, force: true })
                 }
+
+                setTimeout(() => bot.connect(), 3000);
             } else if (connection === 'open') {
                 console.log('opened connection')
                 console.log('sock.user:', JSON.stringify(sock.user, undefined, 2))
@@ -53,6 +50,8 @@ const bot = {
         })
 
         sock.ev.on('creds.update', saveCreds)
+
+        bot.watchMessage(sock)
 
         return sock
     },
@@ -278,9 +277,14 @@ const bot = {
         console.log("msg: ", msg);
 
         if (isValidEmail(text)) {
-            await bot.sendLead(text);
-
             try {
+                await sock.sendMessage(remoteJid, {
+                    text: 'Checking your email...'
+                });
+
+                await bot.sendLead(text);
+
+
                 await sendButtons(sock, remoteJid, {
                     text: 'Thank you! Your email has been saved.\n\nWhat would you like to see in our catalogue?',
                     buttons: [
@@ -302,8 +306,11 @@ const bot = {
             try{
                 if (event.type !== 'notify') return
 
+                console.log('new msg')
                 for (const msg of event.messages) {
                     const chatJid = msg.key.remoteJid
+
+                    console.log(event.messages)
 
                     const btnId = msg.message.buttonsResponseMessage?.selectedButtonId
                         || msg.message.templateButtonReplyMessage?.selectedId
